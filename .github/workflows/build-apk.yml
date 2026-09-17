@@ -17,7 +17,7 @@ jobs:
       - name: Preparar projeto Android
         run: |
           mkdir android-project
-          unzip -q FinanPlus_v1_Android.zip -d android-project
+          unzip -q FinanPlus-v1-APK.zip -d android-project
 
       - name: Configurar Java
         uses: actions/setup-java@v4
