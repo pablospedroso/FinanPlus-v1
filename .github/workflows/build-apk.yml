@@ -1,0 +1,41 @@
+name: Gerar APK Finan+ v1
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar arquivos
+        uses: actions/checkout@v4
+
+      - name: Preparar projeto Android
+        run: |
+          mkdir android-project
+          unzip -q FinanPlus_v1_Android.zip -d android-project
+
+      - name: Configurar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Configurar Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Compilar APK
+        working-directory: android-project
+        run: gradle :app:assembleDebug --no-daemon
+
+      - name: Disponibilizar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: FinanPlus-v1-APK
+          path: android-project/app/build/outputs/apk/debug/app-debug.apk
