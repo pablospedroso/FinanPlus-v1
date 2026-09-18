@@ -16,14 +16,30 @@ jobs:
 
       - name: Preparar projeto Android
         run: |
+          rm -rf android-project
           mkdir android-project
           unzip -q FinanPlus-v1-APK.zip -d android-project
-          if [ -d "android-project/FinanPlus-v1-APK" ]; then
-            cp -a android-project/FinanPlus-v1-APK/. android-project/
-            rm -rf android-project/FinanPlus-v1-APK
+
+          echo "Procurando projeto Android..."
+          find android-project -name settings.gradle -o -name settings.gradle.kts
+
+          SETTINGS_FILE=$(find android-project -name settings.gradle -o -name settings.gradle.kts | head -n 1)
+
+          if [ -z "$SETTINGS_FILE" ]; then
+            echo "ERRO: settings.gradle não encontrado!"
+            echo "Conteúdo extraído:"
+            find android-project -maxdepth 4 -type f
+            exit 1
           fi
-          echo "Conteúdo do projeto:"
-          ls -la android-project
+
+          PROJECT_DIR=$(dirname "$SETTINGS_FILE")
+
+          echo "Projeto encontrado em: $PROJECT_DIR"
+
+          echo "Arquivos do projeto:"
+          ls -la "$PROJECT_DIR"
+
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
       - name: Configurar Java
         uses: actions/setup-java@v4
@@ -37,11 +53,17 @@ jobs:
           gradle-version: '8.7'
 
       - name: Compilar APK
-        working-directory: android-project
-        run: gradle app:assembleDebug --no-daemon
+        run: |
+          cd "$PROJECT_DIR"
+          gradle app:assembleDebug --no-daemon
+
+      - name: Procurar APK
+        run: |
+          echo "APKs encontrados:"
+          find "$PROJECT_DIR" -name "*.apk" -type f
 
       - name: Disponibilizar APK
         uses: actions/upload-artifact@v4
         with:
           name: FinanPlus-v1-APK
-          path: android-project/app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ env.PROJECT_DIR }}/app/build/outputs/apk/debug/app-debug.apk
