@@ -12,7 +12,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Baixar projeto
+      - name: Baixar arquivos
         uses: actions/checkout@v4
 
       - name: Configurar Java 17
@@ -24,21 +24,36 @@ jobs:
       - name: Procurar e extrair projeto Android
         shell: bash
         run: |
-          set -euxo pipefail
-          ZIP="$(find . -type f -iname '*Android*.zip' -print -quit)"
+          set -euo pipefail
+          rm -rf android_project staging
+          mkdir -p android_project staging
+
+          # Aceita tanto o ZIP atual do repositório quanto outros ZIPs do projeto.
+          ZIP="$(find . -type f -iname '*.zip' -not -path './android_project/*' -not -path './staging/*' -print -quit)"
           if [ -z "$ZIP" ]; then
-            echo "ERRO: não encontrei o arquivo *Android*.zip no repositório."
+            echo 'ERRO: nenhum arquivo ZIP foi encontrado no repositório.'
             find . -maxdepth 3 -type f -print
             exit 1
           fi
-          rm -rf android_project
-          mkdir -p android_project
-          unzip -q "$ZIP" -d android_project
 
-          SETTINGS="$(find android_project -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)"
+          echo "ZIP encontrado: $ZIP"
+          unzip -q "$ZIP" -d staging
+
+          # Se o ZIP for um pacote que contém outro ZIP, abre o ZIP interno.
+          if ! find staging -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit | grep -q .; then
+            INNER="$(find staging -type f -iname '*.zip' -print -quit || true)"
+            if [ -n "$INNER" ]; then
+              echo "ZIP interno encontrado: $INNER"
+              unzip -q "$INNER" -d android_project
+            fi
+          else
+            cp -a staging/. android_project/
+          fi
+
+          SETTINGS="$(find android_project staging -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)"
           if [ -z "$SETTINGS" ]; then
-            echo "ERRO: settings.gradle não encontrado depois da extração."
-            find android_project -maxdepth 5 -type f -print
+            echo 'ERRO: não encontrei settings.gradle no projeto Android.'
+            find staging android_project -maxdepth 6 -type f -print
             exit 1
           fi
 
@@ -56,7 +71,7 @@ jobs:
       - name: Verificar projeto
         shell: bash
         run: |
-          set -euxo pipefail
+          set -euo pipefail
           cd "$project_root"
           gradle --version
           gradle :app:tasks --no-daemon --stacktrace
@@ -64,14 +79,14 @@ jobs:
       - name: Gerar APK de teste
         shell: bash
         run: |
-          set -euxo pipefail
+          set -euo pipefail
           cd "$project_root"
           gradle :app:assembleDebug --no-daemon --stacktrace
 
       - name: Gerar AAB para Play Store
         shell: bash
         run: |
-          set -euxo pipefail
+          set -euo pipefail
           cd "$project_root"
           gradle :app:bundleRelease --no-daemon --stacktrace
 
