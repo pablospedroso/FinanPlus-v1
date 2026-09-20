@@ -1,18 +1,21 @@
-name: Gerar APK Finan+ v1
+name: Gerar APK F+ Finanças
 
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches:
+      - main
 
 permissions:
   contents: read
 
 jobs:
   build:
+    name: Build Android
     runs-on: ubuntu-latest
+
     steps:
-      - name: Baixar arquivos
+      - name: Baixar código
         uses: actions/checkout@v4
 
       - name: Configurar Java 17
@@ -21,80 +24,67 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Procurar e extrair projeto Android
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -rf android_project staging
-          mkdir -p android_project staging
-
-          # Aceita tanto o ZIP atual do repositório quanto outros ZIPs do projeto.
-          ZIP="$(find . -type f -iname '*.zip' -not -path './android_project/*' -not -path './staging/*' -print -quit)"
-          if [ -z "$ZIP" ]; then
-            echo 'ERRO: nenhum arquivo ZIP foi encontrado no repositório.'
-            find . -maxdepth 3 -type f -print
-            exit 1
-          fi
-
-          echo "ZIP encontrado: $ZIP"
-          unzip -q "$ZIP" -d staging
-
-          # Se o ZIP for um pacote que contém outro ZIP, abre o ZIP interno.
-          if ! find staging -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit | grep -q .; then
-            INNER="$(find staging -type f -iname '*.zip' -print -quit || true)"
-            if [ -n "$INNER" ]; then
-              echo "ZIP interno encontrado: $INNER"
-              unzip -q "$INNER" -d android_project
-            fi
-          else
-            cp -a staging/. android_project/
-          fi
-
-          SETTINGS="$(find android_project staging -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)"
-          if [ -z "$SETTINGS" ]; then
-            echo 'ERRO: não encontrei settings.gradle no projeto Android.'
-            find staging android_project -maxdepth 6 -type f -print
-            exit 1
-          fi
-
-          ROOT="$(dirname "$SETTINGS")"
-          echo "Projeto Android: $ROOT"
-          test -d "$ROOT/app"
-          test -f "$ROOT/app/build.gradle" || test -f "$ROOT/app/build.gradle.kts"
-          echo "project_root=$ROOT" >> "$GITHUB_ENV"
-
-      - name: Configurar Gradle 8.7
+      - name: Configurar Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.7'
+          gradle-version: '8.9'
 
-      - name: Verificar projeto
+      - name: Verificar estrutura do projeto
         shell: bash
         run: |
-          set -euo pipefail
-          cd "$project_root"
+          set -e
+
+          echo "=== Estrutura do projeto ==="
+          find . -maxdepth 3 -type f | sort
+
+          echo ""
+          echo "=== Verificando arquivos Android ==="
+
+          test -f settings.gradle || test -f settings.gradle.kts
+          test -f build.gradle || test -f build.gradle.kts
+          test -d app
+          test -f app/build.gradle || test -f app/build.gradle.kts
+
+          echo "Projeto Android encontrado corretamente."
+
+      - name: Verificar versão do Java
+        run: |
+          java -version
+
+      - name: Verificar versão do Gradle
+        run: |
           gradle --version
+
+      - name: Verificar tarefas do projeto
+        shell: bash
+        run: |
+          set -e
           gradle :app:tasks --no-daemon --stacktrace
 
-      - name: Gerar APK de teste
+      - name: Gerar APK Debug
         shell: bash
         run: |
-          set -euo pipefail
-          cd "$project_root"
+          set -e
           gradle :app:assembleDebug --no-daemon --stacktrace
 
-      - name: Gerar AAB para Play Store
+      - name: Verificar APK gerado
         shell: bash
         run: |
-          set -euo pipefail
-          cd "$project_root"
-          gradle :app:bundleRelease --no-daemon --stacktrace
+          set -e
 
-      - name: Disponibilizar APK e AAB
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+
+          if [ ! -f "$APK" ]; then
+            echo "ERRO: APK não foi gerado."
+            exit 1
+          fi
+
+          echo "APK gerado com sucesso:"
+          ls -lh "$APK"
+
+      - name: Disponibilizar APK
         uses: actions/upload-artifact@v4
         with:
-          name: FinanPlus-v1-APK
-          path: |
-            ${{ env.project_root }}/app/build/outputs/apk/debug/app-debug.apk
-            ${{ env.project_root }}/app/build/outputs/bundle/release/app-release.aab
+          name: Fmais-Financas-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
