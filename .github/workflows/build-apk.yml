@@ -1,13 +1,10 @@
 name: Build Android
 
 on:
-  workflow_dispatch:
   push:
     branches:
       - main
-
-permissions:
-  contents: read
+  workflow_dispatch:
 
 jobs:
   build:
@@ -15,134 +12,34 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Baixar o código
       - name: Baixar código
         uses: actions/checkout@v4
 
+      # 2. Java 17
       - name: Configurar Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
+      # 3. Gradle 8.9
       - name: Configurar Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
-      - name: Extrair projeto Android
+      # 4. Mostrar estrutura do projeto
+      - name: Verificar estrutura do projeto
         shell: bash
         run: |
-          set -e
+          echo "=========================================="
+          echo "ESTRUTURA DO PROJETO"
+          echo "=========================================="
 
-          echo "=== Arquivos do repositório ==="
-          find . -maxdepth 2 -type f | sort
+          pwd
 
           echo ""
-          echo "=== Procurando ZIP do projeto ==="
-
-          ZIP=$(find . -maxdepth 2 -type f -iname '*.zip' \
-            -not -path './.git/*' \
-            -print -quit)
-
-          if [ -z "$ZIP" ]; then
-            echo "ERRO: nenhum ZIP foi encontrado."
-            exit 1
-          fi
-
-          echo "ZIP encontrado: $ZIP"
-
-          rm -rf android_project
-          mkdir -p android_project
-
-          unzip -q "$ZIP" -d android_project
-
-          echo ""
-          echo "=== Conteúdo extraído ==="
-          find android_project -maxdepth 4 -type f | sort
-
-      - name: Localizar projeto Android
-        shell: bash
-        run: |
-          set -e
-
-          SETTINGS=$(find android_project \
-            -type f \
-            \( -name "settings.gradle" -o -name "settings.gradle.kts" \) \
-            -print -quit)
-
-          if [ -z "$SETTINGS" ]; then
-            echo "ERRO: settings.gradle não foi encontrado dentro do ZIP."
-            echo ""
-            echo "Arquivos encontrados:"
-            find android_project -maxdepth 6 -type f | sort
-            exit 1
-          fi
-
-          PROJECT_ROOT=$(dirname "$SETTINGS")
-
-          echo "Projeto Android encontrado em:"
-          echo "$PROJECT_ROOT"
-
-          if [ ! -d "$PROJECT_ROOT/app" ]; then
-            echo "ERRO: pasta app não encontrada."
-            exit 1
-          fi
-
-          if [ ! -f "$PROJECT_ROOT/build.gradle" ] && \
-             [ ! -f "$PROJECT_ROOT/build.gradle.kts" ]; then
-            echo "ERRO: build.gradle não encontrado."
-            exit 1
-          fi
-
-          echo "PROJECT_ROOT=$PROJECT_ROOT" >> "$GITHUB_ENV"
-
-      - name: Verificar Java
-        run: |
-          java -version
-
-      - name: Verificar Gradle
-        run: |
-          gradle --version
-
-      - name: Verificar projeto
-        shell: bash
-        run: |
-          set -e
-
-          cd "$PROJECT_ROOT"
-
-          echo "=== Gradle Tasks ==="
-          gradle :app:tasks --no-daemon --stacktrace
-
-      - name: Gerar APK Debug
-        shell: bash
-        run: |
-          set -e
-
-          cd "$PROJECT_ROOT"
-
-          gradle :app:assembleDebug \
-            --no-daemon \
-            --stacktrace
-
-      - name: Verificar APK
-        shell: bash
-        run: |
-          set -e
-
-          APK="$PROJECT_ROOT/app/build/outputs/apk/debug/app-debug.apk"
-
-          if [ ! -f "$APK" ]; then
-            echo "ERRO: APK não foi encontrado."
-            exit 1
-          fi
-
-          echo "APK gerado com sucesso!"
-          ls -lh "$APK"
-
-      - name: Disponibilizar APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: Fmais-Financas-APK
-          path: ${{ env.PROJECT_ROOT }}/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+          echo "Arquivos principais:"
+          find . -maxdepth 3 -type f \
+            \( -
